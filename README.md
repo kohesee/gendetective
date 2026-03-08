@@ -11,19 +11,15 @@ GenDetective is a multimodal AI-content detection system designed as a Chrome br
 This integration improves detection robustness, confidence calibration, and interpretability compared to single-method detectors and models.
 
 ---
-<table align="center">
-<tr>
-<td align="center">
-<b>Web Dashboard</b><br>
-<img src="assets/web-dashboard.jpeg" width="500">
-</td>
+<h3 align="center">Web Dashboard</h3>
+<p align="center">
+  <img src="assets/web-dashboard.jpeg" width="600"/>
+</p>
 
-<td align="center">
-<b>Chrome Extension</b><br>
-<img src="assets/chrome-extension.jpeg" width="250">
-</td>
-</tr>
-</table>
+<h3 align="center">Chrome Extension</h3>
+<p align="center">
+  <img src="assets/chrome-extension.jpeg" width="600"/>
+</p>
 
 ## Table of Contents
 
