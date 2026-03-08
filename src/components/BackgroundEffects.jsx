@@ -8,12 +8,6 @@ export default function BackgroundEffects() {
         <div className="grid-overlay" />
         <div className="noise-overlay" />
         <div className="scan-line" />
-        <div className="api-notice-floating">
-          <strong>Note: </strong>
-          GenDetective currently uses the Gemini API free tier.
-          Due to usage limits, analysis requests may occasionally be rate-limited.
-          If you receive a temporary error, please wait a few moments and try again.
-        </div>
       </div>
 
       <div className="particles">
