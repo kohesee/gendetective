@@ -1,5 +1,7 @@
 # GenDetective
 
+<img width="1600" height="999" alt="image" src="https://github.com/user-attachments/assets/9b8effa8-e3bd-4c56-ae66-a5357a25db41" />
+
 GenDetective is a multimodal AI-content detection system designed as a Chrome browser extension / Web-App backed by an integrated FastAPI backend. It detects whether images, videos, audio or text are AI-generated using a hybrid forensic approach that combines:
 
 - Statistical and signal-based analysis
