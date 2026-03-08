@@ -18,7 +18,7 @@ This integration improves detection robustness, confidence calibration, and inte
 
 <h3 align="center">Chrome Extension</h3>
 <p align="center">
-  <img src="assets/chrome-extension.jpeg" width="350"/>
+  <img src="assets/chrome-extension.jpeg" width="700"/>
 </p>
 
 ## Table of Contents
