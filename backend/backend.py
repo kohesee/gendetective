@@ -422,6 +422,335 @@ def camera_realism_score(feats: Dict[str, Any]) -> Tuple[float, List[str]]:
     return score, factors
 
 
+# ENHANCED VIDEO FORENSICS 
+
+def analyze_temporal_consistency(frames: List[np.ndarray]) -> Dict[str, float]:
+    if len(frames) < 3:
+        return {}
+    flow_mags = []
+    brightness_jumps = []
+    for i in range(len(frames) - 1):
+        bdiff = abs(frames[i+1].mean() - frames[i].mean())
+        brightness_jumps.append(bdiff)
+        if HAS_CV2:
+            flow = cv2.calcOpticalFlowFarneback(
+                (frames[i] * 255).astype("uint8"),
+                (frames[i+1] * 255).astype("uint8"),
+                None,
+                0.5, 3, 15, 3, 5, 1.2, 0,
+            )
+            mag = np.sqrt(flow[..., 0] ** 2 + flow[..., 1] ** 2)
+            flow_mags.append(mag.mean())
+    bright_var = float(np.var(brightness_jumps)) if brightness_jumps else 0.0
+    flow_var = float(np.var(flow_mags)) if flow_mags else 0.0
+    return {
+        "brightness_jump_variance": bright_var,
+        "optical_flow_variance": flow_var,
+        "avg_frame_difference": float(np.mean(brightness_jumps)) if brightness_jumps else 0.0,
+    }
+
+def analyze_temporal_flicker(frames: List[np.ndarray]) -> Dict[str, float]:
+    """
+    Detects flicker across frames using noise and sharpness stability.
+    Strong signal for AI-generated videos.
+    """
+    if len(frames) < 3:
+        return {}
+
+    noise_levels = []
+    sharpness_levels = []
+
+    for f in frames:
+        img = (f * 255).astype("uint8")
+
+        if HAS_CV2:
+            lap = cv2.Laplacian(img, cv2.CV_64F)
+            sharpness_levels.append(float(lap.var()))
+
+            blurred = cv2.GaussianBlur(img, (5, 5), 0)
+            noise = img.astype("float32") - blurred.astype("float32")
+            noise_levels.append(float(np.std(noise)))
+
+    if not noise_levels:
+        return {}
+
+    return {
+        "temporal_noise_variance": float(np.var(noise_levels)),
+        "temporal_sharpness_variance": float(np.var(sharpness_levels)),
+        "avg_noise_level": float(np.mean(noise_levels)),
+    }
+
+
+def analyze_face_artifacts(face_regions: List[np.ndarray]) -> Dict[str, float]:
+    if not face_regions or not HAS_CV2:
+        return {}
+    sym_scores = []
+    tex_vars = []
+    edge_sharps = []
+    for face in face_regions:
+        if face.size == 0:
+            continue
+        h, w = face.shape[:2]
+        if w > 10:
+            left = face[:, : w//2]
+            right = cv2.flip(face[:, w//2 :], 1)
+            min_w = min(left.shape[1], right.shape[1])
+            if min_w > 0:
+                s = np.corrcoef(
+                    left[:, :min_w].flatten(),
+                    right[:, :min_w].flatten(),
+                )[0, 1]
+                sym_scores.append(float(s))
+        tex_vars.append(float(face.var()))
+        edges = cv2.Canny((face * 255).astype("uint8"), 100, 200)
+        edge_sharps.append(float((edges > 0).mean()))
+    result = {}
+    if sym_scores:
+        result["avg_face_symmetry"] = float(np.mean(sym_scores))
+        result["face_symmetry_std"] = float(np.std(sym_scores))
+    if tex_vars:
+        result["avg_face_texture"] = float(np.mean(tex_vars))
+    if edge_sharps:
+        result["avg_face_edge_sharpness"] = float(np.mean(edge_sharps))
+    return result
+
+def extract_video_features_enhanced(path: str) -> Dict[str, Any]:
+    feats: Dict[str, Any] = {}
+    if not HAS_CV2:
+        size_mb = os.path.getsize(path) / (1024 * 1024)
+        feats["has_cv2"] = False
+        feats["file_size_mb"] = round(size_mb, 2)
+        return feats
+
+    cap = cv2.VideoCapture(path)
+    if not cap.isOpened():
+        feats["has_cv2"] = False
+        feats["note"] = "cannot open with cv2"
+        return feats
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+    dur = frame_count / fps if fps > 0 else 0.0
+
+    feats.update(
+        {
+            "has_cv2": True,
+            "width": w,
+            "height": h,
+            "fps": round(fps, 2),
+            "frame_count": frame_count,
+            "duration_sec": round(dur, 2),
+        }
+    )
+
+    N = min(30, max(1, frame_count // max(1, int(fps)))) if frame_count > 0 else 0
+    idxs = np.linspace(0, frame_count - 1, N, dtype=int) if N > 0 else []
+
+    sampled_frames: List[np.ndarray] = []
+    face_regions: List[np.ndarray] = []
+    face_positions: List[List[Tuple[int,int,int,int]]] = []
+
+    face_cascade = None
+    try:
+        face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        )
+    except Exception:
+        pass
+
+    for idx in idxs:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
+        ret, frame = cap.read()
+        if not ret:
+            continue
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+        sampled_frames.append(gray)
+        if face_cascade is not None:
+            faces = face_cascade.detectMultiScale(
+                (gray * 255).astype("uint8"),
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30),
+            )
+            if len(faces) > 0:
+                face_positions.append(list(faces))
+                for (x, y, ww, hh) in faces:
+                    fr = gray[y:y+hh, x:x+ww]
+                    if fr.size > 0:
+                        face_regions.append(fr)
+            else:
+                face_positions.append([])
+
+    cap.release()
+
+    feats.update(analyze_temporal_consistency(sampled_frames))
+    feats.update(analyze_temporal_flicker(sampled_frames))
+    feats.update(analyze_face_artifacts(face_regions))
+    feats.update(analyze_motion_acceleration(sampled_frames))
+
+
+    feats["sampled_frames"] = len(idxs)
+    feats["detected_face_frames"] = sum(1 for fp in face_positions if len(fp) > 0)
+    feats["face_detection_rate"] = safe_div(
+        feats["detected_face_frames"], feats["sampled_frames"]
+    )
+
+    centroids = []
+    for fp in face_positions:
+        if len(fp) == 1:
+            x, y, w0, h0 = fp[0]
+            centroids.append((x + w0 / 2, y + h0 / 2))
+    if len(centroids) > 1:
+        centroids = np.array(centroids)
+        feats["face_jitter"] = float(np.mean(np.std(centroids, axis=0)))
+    else:
+        feats["face_jitter"] = 0.0
+
+    return feats
+
+def video_heuristic_score_enhanced(feats: Dict[str, Any]) -> Tuple[float, List[str]]:
+    score = 0.0
+    factors: List[str] = []
+
+    if not feats.get("has_cv2"):
+        if feats.get("file_size_mb", 0.0) < 1.0:
+            score += 6
+            factors.append("Very small file size (heavily compressed or short clip)")
+        return score, factors
+
+    bvar = feats.get("brightness_jump_variance", 0.0)
+    if bvar > 0.001:
+        score += 10
+        factors.append("Brightness changes between frames show some instability")
+
+    fvar = feats.get("optical_flow_variance", 0.0)
+    if fvar > 50.0:
+        score += 10
+        factors.append("Optical flow variance is relatively high (motion inconsistencies)")
+
+    face_sym = feats.get("avg_face_symmetry", 0.9)
+    if face_sym < 0.75:
+        score += 10
+        factors.append("Face symmetry is somewhat irregular")
+
+    face_tex = feats.get("avg_face_texture", 0.0)
+    if face_tex < 100:
+        score += 8
+        factors.append("Facial texture appears smoother than typical camera footage")
+
+    face_edge = feats.get("avg_face_edge_sharpness", 0.0)
+    if face_edge < 0.02:
+        score += 8
+        factors.append("Face boundaries are slightly blurred compared to background")
+
+    face_jitter = feats.get("face_jitter", 0.0)
+    if feats.get("face_detection_rate", 0.0) > 0.3:
+        if face_jitter < 1.0:
+            score += 6
+            factors.append("Face position is unusually stable across frames")
+        elif face_jitter > 60.0:
+            score += 8
+            factors.append("Face position jitters noticeably across frames")
+
+    if feats.get("face_detection_rate", 0.0) < 0.15 and feats.get("sampled_frames", 0) > 5:
+        score += 6
+        factors.append("Faces rarely detected across sampled frames")
+
+    avg_diff = feats.get("avg_frame_difference", 0.0)
+    if avg_diff < 0.005:
+        score += 8
+        factors.append("Very small frame-to-frame change (could be static or generated content)")
+
+    noise_var = feats.get("temporal_noise_variance", 0.0)
+    if noise_var > 2.0:
+        score += 8
+    factors.append("Temporal noise flicker detected across frames")
+
+    sharp_var = feats.get("temporal_sharpness_variance", 0.0)
+    if sharp_var > 500:
+        score += 8
+    factors.append("Sharpness fluctuates across frames (render instability)")
+
+    accel_std = feats.get("motion_acceleration_std", 0.0)
+
+    if accel_std < 0.05:
+        score += 8
+    factors.append("Motion acceleration appears overly smooth")
+
+
+
+    score = max(0.0, min(60.0, score))
+    return score, factors
+
+
+def clip_video_ai_probability(path: str) -> float:
+    """
+    Computes AI probability across sampled video frames using CLIP.
+    Returns percentage (0–100).
+    """
+    if CLIP_MODEL is None or not HAS_CV2:
+        return None
+
+    cap = cv2.VideoCapture(path)
+    if not cap.isOpened():
+        return None
+
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    if frame_count == 0:
+        cap.release()
+        return None
+
+    # sample up to 12 frames evenly
+    sample_indices = np.linspace(0, frame_count - 1, min(12, frame_count), dtype=int)
+
+    scores = []
+
+    for idx in sample_indices:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
+        ret, frame = cap.read()
+        if not ret:
+            continue
+
+        pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        s = clip_ai_probability(pil_img)
+        if s is not None:
+            scores.append(s)
+
+    cap.release()
+
+    if not scores:
+        return None
+
+    return float(np.mean(scores))
+
+def analyze_motion_acceleration(frames: List[np.ndarray]) -> Dict[str, float]:
+    if len(frames) < 4 or not HAS_CV2:
+        return {}
+
+    motion_means = []
+
+    for i in range(len(frames) - 1):
+        flow = cv2.calcOpticalFlowFarneback(
+            (frames[i] * 255).astype("uint8"),
+            (frames[i+1] * 255).astype("uint8"),
+            None,
+            0.5, 3, 15, 3, 5, 1.2, 0,
+        )
+        mag = np.sqrt(flow[..., 0]**2 + flow[..., 1]**2)
+        motion_means.append(mag.mean())
+
+    motion_means = np.array(motion_means)
+
+    acceleration = np.diff(motion_means)
+
+    return {
+        "motion_mean": float(motion_means.mean()),
+        "motion_acceleration_std": float(acceleration.std()) if len(acceleration) else 0.0,
+    }
+
+
 
 # PROMPTS
 
@@ -460,6 +789,34 @@ def build_image_prompt_enhanced(feat_text: str, heuristic_score: float, factors:
     )
     return system_instruction, user_prompt
 
+def build_video_prompt_enhanced(stats_text: str, heuristic_score: float, factors: List[str]) -> Tuple[str, str]:
+    system_instruction = (
+        "You are a deepfake and AI video detection specialist. "
+        "Use the provided temporal metrics and face statistics only as soft hints; "
+        "they can appear in both genuine and synthetic videos. "
+        "Focus on overall temporal coherence, facial consistency, and visual realism."
+    )
+
+    factors_text = "\n".join(f"- {f}" for f in factors) if factors else "- (No notable heuristic cues)"
+
+    user_prompt = (
+        "# VIDEO FORENSIC ANALYSIS\n\n"
+        "## Technical Video Metrics\n"
+        f"{stats_text}\n\n"
+        "## Heuristic Summary (approximate, not definitive)\n"
+        f"Heuristic deepfake-likelihood score (0–60 scale): {round(heuristic_score, 1)}\n"
+        f"{factors_text}\n\n"
+        "## Task\n"
+        "Inspect the attached video, focusing on faces, motion, lighting, and consistency over time.\n"
+        "Return a JSON object with:\n"
+        '  - \"classification\": one of [\"AI Generated / Deepfake\", \"Likely AI Generated\", '
+        '\"Likely Real Footage\", \"Real Footage\", \"Inconclusive\"]\n'
+        '  - \"confidenceScore\": integer 0–100\n'
+        '  - \"justification\": 2–4 sentences with concrete visual and temporal cues\n'
+        '  - \"forensicFactors\": 3–6 short bullet-style strings summarizing evidence\n'
+        "Use lower confidence or 'Inconclusive' if video quality is low or signals are contradictory."
+    )
+    return system_instruction, user_prompt
 
 def build_text_prompt_enhanced(text: str) -> str:
     return (
@@ -482,6 +839,7 @@ def build_text_prompt_enhanced(text: str) -> str:
     )
 
 
+# ENSEMBLE
 
 def ensemble_decision_enhanced(
     gemini_result: Dict[str, Any],
@@ -613,6 +971,76 @@ def call_gemini_image_enhanced(image_bytes: bytes, mime_type: str) -> DetectionR
         heuristicScore=heuristic_score,
     )
 
+def call_gemini_video_enhanced(video_content: Any, local_feats: Dict[str, Any]) -> DetectionResult:
+    heuristic_score, heuristic_factors = video_heuristic_score_enhanced(local_feats)
+
+    clip_video_score = local_feats.get("clip_video_score")
+
+    if clip_video_score is not None:
+        clip_contribution = (clip_video_score / 100.0) * 20.0
+        heuristic_score += clip_contribution
+        heuristic_factors.append(
+            f"CLIP video semantic AI likelihood: {clip_video_score:.1f}%"
+        )
+
+    stats_lines = [
+        f"Resolution: {local_feats.get('width')}x{local_feats.get('height')}, "
+        f"FPS: {local_feats.get('fps')}, Duration: {local_feats.get('duration_sec')}s",
+        f"Brightness jump variance: {local_feats.get('brightness_jump_variance', 0):.5f}",
+        f"Optical flow variance: {local_feats.get('optical_flow_variance', 0):.2f}",
+        f"Face detection rate: {local_feats.get('face_detection_rate', 0)*100:.1f}%",
+        f"Face jitter: {local_feats.get('face_jitter', 0):.2f}",
+        f"Avg face symmetry: {local_feats.get('avg_face_symmetry', 0):.3f}",
+    ]
+    stats_text = "\n".join(stats_lines)
+
+    system_instruction, user_prompt = build_video_prompt_enhanced(
+        stats_text, heuristic_score, heuristic_factors
+    )
+
+    try:
+        resp = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[video_content, user_prompt],
+            config=gtypes.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+                temperature=0.12,
+            ),
+        )
+        gem_json = DetectionResult.model_validate_json(resp.text).model_dump()
+    except Exception as e:
+        print(f"Gemini video call failed: {e}")
+        gem_json = {
+            "classification": "Inconclusive",
+            "confidenceScore": 40,
+            "justification": f"Analysis failed: {str(e)}",
+            "forensicFactors": [],
+        }
+
+    ensemble = ensemble_decision_enhanced(
+        gem_json, heuristic_score, heuristic_factors, is_video=True
+    )
+
+    justification = gem_json.get("justification") or "No justification provided"
+    gem_factors = gem_json.get("forensicFactors") or []
+    combined_factors = list(dict.fromkeys(gem_factors + heuristic_factors))[:8]
+
+    final_justification = (
+        f"{justification}\n\n"
+        f"Ensemble weights: {ensemble.get('ensemble_weights', 'Gemini: 80%, Heuristics: 20%')}\n"
+        f"Heuristic evidence (soft cues): "
+        f"{', '.join(heuristic_factors[:3]) if heuristic_factors else 'No notable heuristic cues'}"
+    )
+
+    return DetectionResult(
+        classification=ensemble["classification"],
+        confidenceScore=ensemble["confidence"],
+        justification=final_justification,
+        forensicFactors=combined_factors,
+        geminiOpinion=gem_json,
+        heuristicScore=heuristic_score,
+    )
 
 # TEXT DETECTION
 
@@ -799,8 +1227,6 @@ def ml_text_score(content: str) -> Dict[str, float]:
     }
 
 
-
-
 # ROUTES
 
 @app.post("/analyze_image", response_model=DetectionResult)
@@ -817,6 +1243,58 @@ def analyze_image(req: ImageRequest):
         print(f"Image analysis error: {e}")
         raise HTTPException(status_code=500, detail=f"Image analysis failed: {str(e)}")
 
+@app.post("/analyze_video", response_model=DetectionResult)
+def analyze_video(req: VideoRequest):
+    if not req.data and not req.url:
+        raise HTTPException(status_code=400, detail="Provide either 'data' or 'url'")
+
+    temp_path = None
+    try:
+        # Local upload
+        if req.data:
+            raw = base64.b64decode(req.data)
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+                tmp.write(raw)
+                temp_path = tmp.name
+
+            local_feats = extract_video_features_enhanced(temp_path)
+            clip_video_score = clip_video_ai_probability(temp_path)
+            local_feats["clip_video_score"] = clip_video_score
+
+
+            uploaded = client.files.upload(file=temp_path)
+            start = time.time()
+            timeout = 90
+            state = getattr(uploaded, "state", None)
+            state_name = getattr(state, "name", state)
+            while state_name == "PROCESSING" and (time.time() - start) < timeout:
+                time.sleep(2)
+                uploaded = client.files.get(name=uploaded.name)
+                state = getattr(uploaded, "state", None)
+                state_name = getattr(state, "name", state)
+
+            if state_name == "FAILED":
+                raise RuntimeError("Gemini Files processing failed")
+
+            return call_gemini_video_enhanced(uploaded, local_feats)
+
+        # URL path
+        else:
+            local_feats = {"has_cv2": False, "note": "URL source; local stats unavailable"}
+            video_part = gtypes.Part.from_uri(file_uri=req.url, mime_type=req.mimeType)
+            return call_gemini_video_enhanced(video_part, local_feats)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Video analysis error: {e}")
+        raise HTTPException(status_code=500, detail=f"Video analysis failed: {str(e)}")
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
 
 @app.post("/analyze_text", response_model=DetectionResult)
 def analyze_text(req: TextRequest):
