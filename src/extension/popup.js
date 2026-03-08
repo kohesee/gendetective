@@ -387,13 +387,17 @@ function displayResult(result) {
   
   if (!resultPanel) return;
   
-  // Extract probability from different possible response formats
-  const probability = result.probability || result.ai_probability || 0;
+  // Use backend's confidenceScore (0-100) as probability (0-1)
+  const probability = (result.confidenceScore || 0) / 100;
   const confidence = result.confidence || calculateConfidence(probability);
   
   const html = `
     <div class="result-title">Analysis Result</div>
     <div class="result-content">
+      <div class="result-item">
+        <span class="result-label">Classification</span>
+        <span class="result-value">${result.classification || 'Unknown'}</span>
+      </div>
       <div class="result-item">
         <span class="result-label">AI Probability</span>
         <span class="result-value">${(probability * 100).toFixed(1)}%</span>
@@ -401,10 +405,10 @@ function displayResult(result) {
       <div class="probability-bar">
         <div class="probability-fill ${getConfidenceClass(probability)}" style="width: ${probability * 100}%"></div>
       </div>
-      ${result.analysis ? `
+      ${result.justification ? `
         <div class="result-item">
-          <span class="result-label">Analysis</span>
-          <span class="result-value" style="font-size: 12px; font-weight: 400;">${result.analysis}</span>
+          <span class="result-label">Justification</span>
+          <span class="result-value" style="font-size: 12px; font-weight: 400;">${result.justification}</span>
         </div>
       ` : ''}
     </div>
