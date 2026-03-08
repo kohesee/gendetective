@@ -102,6 +102,8 @@ Across all three implemented modalities, GenDetective achieved an overall accura
 - Audio detection is not yet implemented and is excluded from the current evaluation
 - Gemini API availability may affect reproducibility of image and video results in offline environments
 
+---
+
 ## Use Cases
 - Fake news & misinformation detection
 - Deepfake awareness tools
