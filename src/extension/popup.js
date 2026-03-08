@@ -1,21 +1,21 @@
-const BACKEND = 'http://127.0.0.1:8000';
+const BACKEND = "http://127.0.0.1:8000";
 
-let currentTab = 'text';
-let backendStatus = 'checking';
+let currentTab = "text";
+let backendStatus = "checking";
 let selectedFile = null;
 let selectedFileType = null;
 
 // Initialize popup
-document.addEventListener('DOMContentLoaded', () => {
-  const root = document.getElementById('root');
+document.addEventListener("DOMContentLoaded", () => {
+  const root = document.getElementById("root");
   root.innerHTML = renderPopup();
-  
+
   // Setup event listeners
   setupTabListeners();
   setupFileInputListeners();
   setupAnalyzeButton();
   setupBackendCheck();
-  
+
   // Initial render
   updateContent();
 });
@@ -33,20 +33,20 @@ function renderPopup() {
       <header class="popup-header">
         <div class="header-content">
           <div class="header-title">
-            <div class="logo">GD</div>
-            <span class="title">GenDetective</span>
+            <h1 class="main-title">GenDetective</h1>
+            <p class="subtitle">Detect AI Generated content with a click</p>
           </div>
           <span class="status-badge ${backendStatus}" data-status-badge>
-            ${backendStatus === 'connected' ? '✓ Connected' : '✗ Offline'}
+            ${backendStatus === "connected" ? "Connected" : "Offline"}
           </span>
         </div>
       </header>
 
       <div class="tabs-container" data-tabs-container>
-        <button class="tab-button active" data-tab="text">📝 Text</button>
-        <button class="tab-button" data-tab="image">🖼️ Image</button>
-        <button class="tab-button" data-tab="video">🎬 Video</button>
-        <button class="tab-button" data-tab="settings">⚙️ Settings</button>
+        <button class="tab-button active" data-tab="text">Text</button>
+        <button class="tab-button" data-tab="image">Image</button>
+        <button class="tab-button" data-tab="video">Video</button>
+        <button class="tab-button" data-tab="settings">Settings</button>
       </div>
 
       <div class="popup-content" data-content-area>
@@ -69,7 +69,7 @@ function renderTextPanel() {
         ></textarea>
       </div>
       <button class="button button-primary" data-analyze-btn>
-        🔍 Analyze Text
+        Analyze Text
       </button>
     </div>
     <div class="result-section" data-result-section style="display: none;">
@@ -85,7 +85,11 @@ function renderImagePanel() {
         <label class="input-label">Upload Image</label>
         <div class="file-input-wrapper">
           <label class="file-input-label" data-image-label>
-            <span class="upload-icon">📤</span>
+            <svg class="upload-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
             <span>Click to upload or drag image</span>
             <input type="file" class="file-input" data-image-input accept="image/*">
           </label>
@@ -94,7 +98,7 @@ function renderImagePanel() {
       </div>
       <div data-image-preview-container></div>
       <button class="button button-primary" data-analyze-btn disabled>
-        🔍 Analyze Image
+        Analyze Image
       </button>
     </div>
     <div class="result-section" data-result-section style="display: none;">
@@ -107,19 +111,27 @@ function renderVideoPanel() {
   return `
     <div class="panel">
       <div class="input-group">
-        <label class="input-label">Upload Video</label>
-        <div class="file-input-wrapper">
+        <label class="input-label">Upload Video or Paste Link</label>
+        <div class="input-tabs">
+          <button class="input-tab-btn active" data-video-tab="upload">Upload</button>
+          <button class="input-tab-btn" data-video-tab="link">Paste Link</button>
+        </div>
+        <div class="file-input-wrapper" data-video-upload-section>
           <label class="file-input-label" data-video-label>
-            <span class="upload-icon">📤</span>
+            <svg class="upload-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="23 7 16 12 23 17 23 7"></polygon>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            </svg>
             <span>Click to upload or drag video</span>
             <input type="file" class="file-input" data-video-input accept="video/*">
           </label>
           <div class="file-info">Supported: MP4, WebM, Ogg</div>
         </div>
+        <input type="text" class="text-input" data-video-link-input placeholder="Paste video URL here..." style="display: none;" data-video-link-section>
       </div>
       <div data-video-preview-container></div>
       <button class="button button-primary" data-analyze-btn disabled>
-        🔍 Analyze Video
+        Analyze Video
       </button>
     </div>
     <div class="result-section" data-result-section style="display: none;">
@@ -145,47 +157,41 @@ function renderSettingsPanel() {
       </div>
       <div class="settings-group">
         <div class="setting-item">
-          <span class="setting-label">Auto-clear results</span>
-          <div class="toggle-switch" data-toggle-autoclear></div>
-        </div>
-      </div>
-      <div class="settings-group">
-        <div class="setting-item">
           <span class="setting-label">Backend Status</span>
           <span class="setting-value" data-backend-status-text>
-            ${backendStatus === 'connected' ? 'Connected' : 'Disconnected'}
+            ${backendStatus === "connected" ? "Connected" : "Disconnected"}
           </span>
         </div>
       </div>
       <button class="button button-secondary" data-refresh-backend>
-        🔄 Refresh Connection
+        Refresh Connection
       </button>
     </div>
   `;
 }
 
 function updateContent() {
-  const contentArea = document.querySelector('[data-content-area]');
-  
-  let html = '';
-  switch(currentTab) {
-    case 'text':
+  const contentArea = document.querySelector("[data-content-area]");
+
+  let html = "";
+  switch (currentTab) {
+    case "text":
       html = renderTextPanel();
       break;
-    case 'image':
+    case "image":
       html = renderImagePanel();
       break;
-    case 'video':
+    case "video":
       html = renderVideoPanel();
       break;
-    case 'settings':
+    case "settings":
       html = renderSettingsPanel();
       break;
   }
-  
+
   contentArea.innerHTML = html;
-  
-  if (currentTab !== 'settings') {
+
+  if (currentTab !== "settings") {
     setupFileInputListeners();
     setupAnalyzeButton();
   } else {
@@ -194,14 +200,16 @@ function updateContent() {
 }
 
 function setupTabListeners() {
-  document.querySelectorAll('[data-tab]').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
+  document.querySelectorAll("[data-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document
+        .querySelectorAll("[data-tab]")
+        .forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
       currentTab = tab.dataset.tab;
       updateContent();
-      
-      if (currentTab !== 'settings') {
+
+      if (currentTab !== "settings") {
         selectedFile = null;
         selectedFileType = null;
       }
@@ -211,161 +219,219 @@ function setupTabListeners() {
 
 function setupFileInputListeners() {
   // Image upload
-  const imageInput = document.querySelector('[data-image-input]');
+  const imageInput = document.querySelector("[data-image-input]");
   if (imageInput) {
-    imageInput.addEventListener('change', (e) => {
+    imageInput.addEventListener("change", (e) => {
       if (e.target.files[0]) {
-        handleFileSelect(e.target.files[0], 'image');
+        handleFileSelect(e.target.files[0], "image");
       }
     });
-    
-    const imageLabel = document.querySelector('[data-image-label]');
-    imageLabel.addEventListener('dragover', (e) => {
+
+    const imageLabel = document.querySelector("[data-image-label]");
+    imageLabel.addEventListener("dragover", (e) => {
       e.preventDefault();
-      imageLabel.classList.add('active');
+      imageLabel.classList.add("active");
     });
-    
-    imageLabel.addEventListener('dragleave', () => {
-      imageLabel.classList.remove('active');
+
+    imageLabel.addEventListener("dragleave", () => {
+      imageLabel.classList.remove("active");
     });
-    
-    imageLabel.addEventListener('drop', (e) => {
+
+    imageLabel.addEventListener("drop", (e) => {
       e.preventDefault();
-      imageLabel.classList.remove('active');
+      imageLabel.classList.remove("active");
       if (e.dataTransfer.files[0]) {
-        handleFileSelect(e.dataTransfer.files[0], 'image');
+        handleFileSelect(e.dataTransfer.files[0], "image");
       }
     });
   }
-  
+
   // Video upload
-  const videoInput = document.querySelector('[data-video-input]');
+  const videoInput = document.querySelector("[data-video-input]");
   if (videoInput) {
-    videoInput.addEventListener('change', (e) => {
+    videoInput.addEventListener("change", (e) => {
       if (e.target.files[0]) {
-        handleFileSelect(e.target.files[0], 'video');
+        handleFileSelect(e.target.files[0], "video");
       }
     });
-    
-    const videoLabel = document.querySelector('[data-video-label]');
-    videoLabel.addEventListener('dragover', (e) => {
+
+    const videoLabel = document.querySelector("[data-video-label]");
+    videoLabel.addEventListener("dragover", (e) => {
       e.preventDefault();
-      videoLabel.classList.add('active');
+      videoLabel.classList.add("active");
     });
-    
-    videoLabel.addEventListener('dragleave', () => {
-      videoLabel.classList.remove('active');
+
+    videoLabel.addEventListener("dragleave", () => {
+      videoLabel.classList.remove("active");
     });
-    
-    videoLabel.addEventListener('drop', (e) => {
+
+    videoLabel.addEventListener("drop", (e) => {
       e.preventDefault();
-      videoLabel.classList.remove('active');
+      videoLabel.classList.remove("active");
       if (e.dataTransfer.files[0]) {
-        handleFileSelect(e.dataTransfer.files[0], 'video');
+        handleFileSelect(e.dataTransfer.files[0], "video");
       }
     });
+  }
+
+  // Video tab switching
+  const videoTabs = document.querySelectorAll("[data-video-tab]");
+  const videoUploadSection = document.querySelector("[data-video-upload-section]");
+  const videoLinkInput = document.querySelector("[data-video-link-section]");
+
+  if (videoTabs.length > 0) {
+    videoTabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        videoTabs.forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+
+        if (tab.dataset.videoTab === "upload") {
+          videoUploadSection.style.display = "block";
+          videoLinkInput.style.display = "none";
+          selectedFile = null;
+          selectedFileType = null;
+        } else {
+          videoUploadSection.style.display = "none";
+          videoLinkInput.style.display = "block";
+          selectedFile = null;
+          selectedFileType = null;
+        }
+      });
+    });
+
+    // Enable analyze button on video link input
+    if (videoLinkInput) {
+      videoLinkInput.addEventListener("input", () => {
+        const analyzeBtn = document.querySelector("[data-analyze-btn]");
+        if (analyzeBtn) {
+          analyzeBtn.disabled = !videoLinkInput.value.trim();
+        }
+      });
+    }
   }
 }
 
 function handleFileSelect(file, type) {
   selectedFile = file;
   selectedFileType = type;
-  
+
   const reader = new FileReader();
   reader.onload = () => {
-    const previewHTML = type === 'image' 
-      ? `<div class="preview-container">
+    const previewHTML =
+      type === "image"
+        ? `<div class="preview-container">
            <img src="${reader.result}" class="preview-image" />
            <button class="remove-file-btn" data-remove-file>Remove</button>
          </div>`
-      : `<div class="preview-container">
+        : `<div class="preview-container">
            <video src="${reader.result}" class="preview-video" controls></video>
            <button class="remove-file-btn" data-remove-file>Remove</button>
          </div>`;
-    
-    const previewContainer = document.querySelector(`[data-${type}-preview-container]`);
+
+    const previewContainer = document.querySelector(
+      `[data-${type}-preview-container]`,
+    );
     previewContainer.innerHTML = previewHTML;
-    
-    document.querySelector('[data-remove-file]').addEventListener('click', () => {
-      selectedFile = null;
-      selectedFileType = null;
-      previewContainer.innerHTML = '';
-      document.querySelector(`[data-${type}-input]`).value = '';
-      document.querySelector('[data-analyze-btn]').disabled = true;
-    });
-    
-    document.querySelector('[data-analyze-btn]').disabled = false;
+
+    document
+      .querySelector("[data-remove-file]")
+      .addEventListener("click", () => {
+        selectedFile = null;
+        selectedFileType = null;
+        previewContainer.innerHTML = "";
+        document.querySelector(`[data-${type}-input]`).value = "";
+        document.querySelector("[data-analyze-btn]").disabled = true;
+      });
+
+    document.querySelector("[data-analyze-btn]").disabled = false;
   };
-  
+
   reader.readAsDataURL(file);
 }
 
 function setupAnalyzeButton() {
-  const analyzeBtn = document.querySelector('[data-analyze-btn]');
+  const analyzeBtn = document.querySelector("[data-analyze-btn]");
   if (!analyzeBtn) return;
-  
-  analyzeBtn.addEventListener('click', async () => {
+
+  analyzeBtn.addEventListener("click", async () => {
     await analyzeContent();
   });
 }
 
 async function analyzeContent() {
-  if (backendStatus !== 'connected') {
-    showNotification('Backend is disconnected. Please check settings.', 'error');
+  if (backendStatus !== "connected") {
+    showNotification(
+      "Backend is disconnected. Please check settings.",
+      "error",
+    );
     return;
   }
-  
-  let endpoint = '';
+
+  let endpoint = "";
   let payload = {};
-  
+
   try {
-    if (currentTab === 'text') {
-      const textInput = document.querySelector('[data-text-input]');
+    if (currentTab === "text") {
+      const textInput = document.querySelector("[data-text-input]");
       if (!textInput.value.trim()) {
-        showNotification('Please enter some text to analyze', 'error');
+        showNotification("Please enter some text to analyze", "error");
         return;
       }
-      endpoint = '/analyze_text';
+      endpoint = "/analyze_text";
       payload = { content: textInput.value.trim() };
-    } else if (currentTab === 'image') {
+    } else if (currentTab === "image") {
       if (!selectedFile) {
-        showNotification('Please select an image to analyze', 'error');
+        showNotification("Please select an image to analyze", "error");
         return;
       }
-      endpoint = '/analyze_image';
+      endpoint = "/analyze_image";
       const base64 = await fileToBase64(selectedFile);
-      payload = { data: base64, mimeType: 'image/png' };
-    } else if (currentTab === 'video') {
-      if (!selectedFile) {
-        showNotification('Please select a video to analyze', 'error');
-        return;
+      payload = { data: base64, mimeType: "image/png" };
+    } else if (currentTab === "video") {
+      const videoLink = document.querySelector("[data-video-link-section]");
+      
+      if (videoLink && videoLink.style.display !== "none") {
+        // Link mode
+        const url = videoLink.value.trim();
+        if (!url) {
+          showNotification("Please enter a video URL", "error");
+          return;
+        }
+        endpoint = "/analyze_video";
+        payload = { url: url, mimeType: "video/mp4" };
+      } else {
+        // Upload mode
+        if (!selectedFile) {
+          showNotification("Please select a video to analyze", "error");
+          return;
+        }
+        endpoint = "/analyze_video";
+        const base64 = await fileToBase64(selectedFile);
+        payload = { data: base64, mimeType: "video/mp4" };
       }
-      endpoint = '/analyze_video';
-      const base64 = await fileToBase64(selectedFile);
-      payload = { data: base64, mimeType: 'video/mp4' };
     }
-    
+
     showLoading(true);
-    
+
     const response = await fetch(BACKEND + endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
-    
+
     showLoading(false);
-    
+
     if (!response.ok) {
-      showNotification('Analysis failed. Please try again.', 'error');
+      showNotification("Analysis failed. Please try again.", "error");
       return;
     }
-    
+
     const result = await response.json();
     displayResult(result);
   } catch (error) {
     showLoading(false);
-    console.error('Analysis error:', error);
-    showNotification('An error occurred during analysis.', 'error');
+    console.error("Analysis error:", error);
+    showNotification("An error occurred during analysis.", "error");
   }
 }
 
@@ -373,7 +439,7 @@ function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const base64 = reader.result.split(',')[1];
+      const base64 = reader.result.split(",")[1];
       resolve(base64);
     };
     reader.onerror = reject;
@@ -382,128 +448,134 @@ function fileToBase64(file) {
 }
 
 function displayResult(result) {
-  const resultSection = document.querySelector('[data-result-section]');
-  const resultPanel = document.querySelector('[data-result-panel]');
-  
+  const resultSection = document.querySelector("[data-result-section]");
+  const resultPanel = document.querySelector("[data-result-panel]");
+
   if (!resultPanel) return;
-  
+
   // Use backend's confidenceScore (0-100) as probability (0-1)
   const probability = (result.confidenceScore || 0) / 100;
   const confidence = result.confidence || calculateConfidence(probability);
-  
+
   const html = `
     <div class="result-title">Analysis Result</div>
     <div class="result-content">
       <div class="result-item">
-        <span class="result-label">Classification</span>
-        <span class="result-value">${result.classification || 'Unknown'}</span>
-      </div>
-      <div class="result-item">
-        <span class="result-label">AI Probability</span>
+        <span class="result-label">Confidence</span>
         <span class="result-value">${(probability * 100).toFixed(1)}%</span>
-      </div>
-      <div class="probability-bar">
-        <div class="probability-fill ${getConfidenceClass(probability)}" style="width: ${probability * 100}%"></div>
-      </div>
-      ${result.justification ? `
-        <div class="result-item">
-          <span class="result-label">Justification</span>
-          <span class="result-value" style="font-size: 12px; font-weight: 400;">${result.justification}</span>
+        <div class="confidence-bar-inline">
+          <div class="probability-fill ${getConfidenceClass(probability)}" style="width: ${probability * 100}%"></div>
         </div>
-      ` : ''}
+      </div>
+      <div class="result-section-main">
+        <div class="classification-subheading">${result.classification || "Unknown"}</div>
+        ${
+          result.justification
+            ? `<div class="justification-text">${result.justification}</div>`
+            : ""
+        }
+      </div>
     </div>
   `;
-  
+
   resultPanel.innerHTML = html;
-  resultSection.style.display = 'block';
-  showNotification('Analysis complete!', 'success');
+  resultSection.style.display = "block";
+  showNotification("Analysis complete!", "success");
 }
 
 function calculateConfidence(probability) {
-  if (probability < 0.33) return 'low';
-  if (probability < 0.66) return 'medium';
-  return 'high';
+  if (probability < 0.33) return "low";
+  if (probability < 0.66) return "medium";
+  return "high";
 }
 
 function getConfidenceClass(probability) {
-  if (probability < 0.33) return 'confidence-low';
-  if (probability < 0.66) return 'confidence-medium';
-  return 'confidence-high';
+  if (probability < 0.33) return "confidence-low";
+  if (probability < 0.66) return "confidence-medium";
+  return "confidence-high";
 }
 
 function showLoading(show) {
-  const analyzeBtn = document.querySelector('[data-analyze-btn]');
+  const analyzeBtn = document.querySelector("[data-analyze-btn]");
   if (!analyzeBtn) return;
-  
+
   if (show) {
     analyzeBtn.disabled = true;
-    analyzeBtn.innerHTML = '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px; margin-right: 4px;"></span>Analyzing...';
+    analyzeBtn.innerHTML =
+      '<span class="spinner" style="width: 16px; height: 16px; border-width: 2px; margin-right: 4px;"></span>Analyzing...';
   } else {
-    analyzeBtn.disabled = currentTab === 'text' || selectedFile;
-    analyzeBtn.textContent = currentTab === 'text' ? '🔍 Analyze Text' : currentTab === 'image' ? '🔍 Analyze Image' : '🔍 Analyze Video';
+    analyzeBtn.disabled = currentTab === "text" || selectedFile;
+    analyzeBtn.textContent =
+      currentTab === "text"
+        ? "Analyze Text"
+        : currentTab === "image"
+          ? "Analyze Image"
+          : "Analyze Video";
   }
 }
 
-function showNotification(message, type = 'info') {
-  const notification = document.createElement('div');
+function showNotification(message, type = "info") {
+  const notification = document.createElement("div");
   notification.className = `notification ${type}`;
   notification.textContent = message;
   document.body.appendChild(notification);
-  
+
   setTimeout(() => {
-    notification.style.animation = 'slideOut 0.3s ease-out';
+    notification.style.animation = "slideOut 0.3s ease-out";
     setTimeout(() => notification.remove(), 300);
   }, 3000);
 }
 
 async function setupBackendCheck() {
-  const statusBadge = document.querySelector('[data-status-badge]');
-  
+  const statusBadge = document.querySelector("[data-status-badge]");
+
   try {
-    const response = await fetch(BACKEND + '/', {
-      method: 'GET',
-      signal: AbortSignal.timeout(5000)
+    const response = await fetch(BACKEND + "/", {
+      method: "GET",
+      signal: AbortSignal.timeout(5000),
     });
-    
+
     if (response.ok) {
       const data = await response.json();
-      if (data.status && data.status.includes('GenDetective')) {
-        backendStatus = 'connected';
+      if (data.status && data.status.includes("GenDetective")) {
+        backendStatus = "connected";
       }
     }
   } catch (error) {
-    backendStatus = 'disconnected';
+    backendStatus = "disconnected";
   }
-  
+
   if (statusBadge) {
     statusBadge.className = `status-badge ${backendStatus}`;
-    statusBadge.textContent = backendStatus === 'connected' ? '✓ Connected' : '✗ Offline';
+    statusBadge.textContent =
+      backendStatus === "connected" ? "Connected" : "Offline";
   }
 }
 
 function setupSettingsListeners() {
-  const refreshBtn = document.querySelector('[data-refresh-backend]');
-  const statusText = document.querySelector('[data-backend-status-text]');
-  
+  const refreshBtn = document.querySelector("[data-refresh-backend]");
+  const statusText = document.querySelector("[data-backend-status-text]");
+
   if (refreshBtn) {
-    refreshBtn.addEventListener('click', async () => {
+    refreshBtn.addEventListener("click", async () => {
       refreshBtn.disabled = true;
-      refreshBtn.textContent = '🔄 Checking...';
-      
+      refreshBtn.textContent = "Checking...";
+
       await setupBackendCheck();
-      
+
       if (statusText) {
-        statusText.textContent = backendStatus === 'connected' ? 'Connected' : 'Disconnected';
+        statusText.textContent =
+          backendStatus === "connected" ? "Connected" : "Disconnected";
       }
-      
+
       refreshBtn.disabled = false;
-      refreshBtn.textContent = '🔄 Refresh Connection';
+      refreshBtn.textContent = "Refresh Connection";
     });
   }
 }
 
 // Add slideOut animation
-const style = document.createElement('style');
+const style = document.createElement("style");
 style.textContent = `
   @keyframes slideOut {
     from {

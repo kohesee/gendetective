@@ -102,6 +102,15 @@ export default function App() {
   }, [])
 
   const handleVideoFile = useCallback((file) => {
+    // Check if it's a URL-based file (from video link input)
+    if (file.videoUrl) {
+      setVideoBase64(null)
+      setVideoFile(file)
+      setVideoPreviewSrc(file.videoUrl)
+      return
+    }
+
+    // Regular file upload
     const reader = new FileReader()
     reader.onload = () => {
       const base64 = reader.result.split(',')[1]
@@ -109,8 +118,11 @@ export default function App() {
       setVideoFile(file)
       setVideoPreviewSrc(reader.result)
     }
+    reader.onerror = () => {
+      showNotification('Failed to read video file', 'error')
+    }
     reader.readAsDataURL(file)
-  }, [])
+  }, [showNotification])
 
   const handleRemoveVideo = useCallback(() => {
     setVideoBase64(null)
@@ -168,12 +180,16 @@ export default function App() {
     }
 
     if (mode === 'video') {
-      if (!videoBase64) {
-        showNotification('Please upload a video first', 'error')
+      if (!videoBase64 && !videoFile?.videoUrl) {
+        showNotification('Please upload a video or paste a link', 'error')
         return
       }
       endpoint = '/analyze_video'
-      payload = { data: videoBase64, mimeType: 'video/mp4' }
+      if (videoFile?.videoUrl) {
+        payload = { url: videoFile.videoUrl, mimeType: 'video/mp4' }
+      } else {
+        payload = { data: videoBase64, mimeType: 'video/mp4' }
+      }
     }
 
     if (mode === 'text') {
