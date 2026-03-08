@@ -48,7 +48,7 @@ This integration and combination improves detection robustness, confidence calib
 - NumPy, SciPy - statistical analysis
 - OpenCV - image & video forensics
 - Transformers (CLIP)
-- Pre-trained models
+- Pre-trained models for audio analysis ( Wav2Vec2 / HuBert)
 - Joblib - ML model loading
 
 ### AI/ML
