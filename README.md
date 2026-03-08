@@ -17,12 +17,16 @@ This integration improves detection robustness, confidence calibration, and inte
 <p align="center">
   <img src="assets/web-dashboard.jpeg" width="600"/>
 </p>
-<h3 align="center">Web Dashboard</h3>
+<h4 align="center">Web Dashboard</h4>
+
+---
 
 <p align="center">
   <img src="assets/chrome-extension.jpeg" width="600"/>
 </p>
-<h3 align="center">Chrome Extension</h3>
+<h4 align="center">Chrome Extension</h4>
+
+---
 
 ## Table of Contents
 
